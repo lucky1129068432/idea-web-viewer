@@ -4,9 +4,11 @@ plugins {
 }
 
 group = "com.idea.webviewer"
-version = "1.0.0"
+version = "1.0.1"
 
 repositories {
+    maven { url = uri("https://maven.aliyun.com/repository/public") }
+    maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
     mavenCentral()
 }
 
@@ -31,6 +33,10 @@ tasks {
     }
 
     instrumentCode {
+        enabled = false
+    }
+
+    instrumentTestCode {
         enabled = false
     }
 }
