@@ -5,6 +5,7 @@
     <vendor email="support@example.com" url="http://example.com">WebViewer</vendor>
 
     <description><![CDATA[
+        A web browser embedded in the IDEA editor, providing a complete web browsing experience.<br/>
         在 IDEA 编辑器中嵌入网页浏览器，提供完整的网页浏览体验。<br/>
         <br/>
         <b>主要功能：</b><br/>
