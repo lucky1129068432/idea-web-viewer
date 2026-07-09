@@ -1,0 +1,48 @@
+<idea-plugin>
+    <id>com.idea.webviewer</id>
+    <name>Web Viewer</name>
+    <version>1.0.0</version>
+    <vendor email="support@example.com" url="http://example.com">WebViewer</vendor>
+
+    <description><![CDATA[
+        在 IDEA 编辑器中嵌入网页浏览器，提供完整的网页浏览体验。<br/>
+        <br/>
+        <b>主要功能：</b><br/>
+        • 地址栏输入网址快速跳转<br/>
+        • 前进、后退、刷新按钮控制浏览历史<br/>
+        • 暗色/亮色主题智能切换<br/>
+        • 繁体转简体中文转换（支持网页内容批量转换）<br/>
+        • 页面边距调整，避免内容紧贴编辑器边缘<br/>
+        • 亮度调节，保护眼睛<br/>
+        • 自定义文字颜色（暗色模式下可调节）<br/>
+        • 历史记录管理（保存页面标题、点击跳转、支持删除）<br/>
+        • 书签功能（保存页面标题和网址、点击跳转）<br/>
+        <br/>
+        <b>使用方法：</b><br/>
+        1. 通过 Tools 菜单 → Open URL 打开浏览器<br/>
+        2. 使用快捷键 Ctrl+Shift+U 快速打开<br/>
+        3. 在地址栏输入网址按回车访问<br/>
+        <br/>
+        安装后请重启 IDEA。
+    ]]></description>
+
+    <change-notes><![CDATA[
+        1.0.0 - 初始版本
+    ]]></change-notes>
+
+    <idea-version since-build="233"/>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <actions>
+        <action id="WebViewer.OpenUrl" class="com.idea.webviewer.action.OpenUrlAction" text="Open URL" description="Open URL in editor">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift U"/>
+        </action>
+
+    </actions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileEditorProvider implementation="com.idea.webviewer.editor.WebViewerEditorProvider"/>
+    </extensions>
+</idea-plugin>
