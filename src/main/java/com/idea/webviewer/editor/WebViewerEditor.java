@@ -37,6 +37,7 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
     private JButton colorButton;
     private JButton convertButton;
     private JButton historyButton;
+    private JButton readerModeButton;
     private int brightnessLevel = 0;
     private String customTextColor = "#c0c0c0";
     private String currentTitle = "";
@@ -49,16 +50,42 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         init();
     }
 
+    private JButton createToolButton(String text, String tooltip) {
+        JButton btn = new JButton(text);
+        btn.setToolTipText(tooltip);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        btn.setPreferredSize(new Dimension(28, 28));
+        btn.setMaximumSize(new Dimension(28, 28));
+        btn.setMinimumSize(new Dimension(28, 28));
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                btn.setContentAreaFilled(true);
+                btn.setBackground(new Color(230, 230, 230));
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                btn.setContentAreaFilled(false);
+            }
+        });
+        return btn;
+    }
+
     private void init() {
         panel = new JPanel(new BorderLayout());
         
-        JPanel toolbar = new JPanel(new BorderLayout(5, 0));
-        toolbar.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
+        JPanel toolbar = new JPanel(new BorderLayout(8, 0));
+        toolbar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        toolbar.setBackground(new Color(245, 245, 245));
         
         JPanel navigationPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        navigationPanel.setOpaque(false);
         
-        backButton = new JButton("\u2190");
-        backButton.setToolTipText("后退");
+        backButton = createToolButton("\u2190", "后退");
         backButton.addActionListener(e -> {
             isHistoryNavigation = true;
             browserWrapper.goBack();
@@ -66,8 +93,7 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         backButton.setEnabled(false);
         navigationPanel.add(backButton);
 
-        forwardButton = new JButton("\u2192");
-        forwardButton.setToolTipText("前进");
+        forwardButton = createToolButton("\u2192", "前进");
         forwardButton.addActionListener(e -> {
             isHistoryNavigation = true;
             browserWrapper.goForward();
@@ -75,13 +101,11 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         forwardButton.setEnabled(false);
         navigationPanel.add(forwardButton);
         
-        refreshButton = new JButton("\u27F3");
-        refreshButton.setToolTipText("刷新");
+        refreshButton = createToolButton("\u27F3", "刷新");
         refreshButton.addActionListener(e -> browserWrapper.refresh());
         navigationPanel.add(refreshButton);
 
-        historyButton = new JButton("\u25BC");
-        historyButton.setToolTipText("历史记录");
+        historyButton = createToolButton("\u25BC", "历史记录");
         historyButton.addActionListener(e -> {
             HistoryDialog dialog = new HistoryDialog(
                 (Frame) SwingUtilities.getWindowAncestor(panel),
@@ -94,14 +118,24 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         toolbar.add(navigationPanel, BorderLayout.WEST);
         
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+        rightPanel.setOpaque(false);
         
-        convertButton = new JButton("简");
-        convertButton.setToolTipText("繁体转简体");
+        readerModeButton = createToolButton("\u2637", "阅读模式");
+        readerModeButton.addActionListener(e -> {
+            browserWrapper.toggleReaderMode();
+            boolean isReader = browserWrapper.isReaderMode();
+            readerModeButton.setText(isReader ? "\u2636" : "\u2637");
+            readerModeButton.setToolTipText(isReader ? "退出阅读模式" : "阅读模式");
+            readerModeButton.setBackground(isReader ? new Color(200, 220, 255) : null);
+        });
+        rightPanel.add(readerModeButton);
+        
+        convertButton = createToolButton("简", "繁体转简体");
+        convertButton.setFont(new Font("Microsoft YaHei", Font.PLAIN, 11));
         convertButton.addActionListener(e -> browserWrapper.convertToSimplifiedChinese());
         rightPanel.add(convertButton);
         
-        bookmarkButton = new JButton("\u2B50");
-        bookmarkButton.setToolTipText("书签管理");
+        bookmarkButton = createToolButton("\u2B50", "书签管理");
         bookmarkButton.addActionListener(e -> {
             String currentUrl = addressBar.getText().trim();
             String title = currentTitle != null && !currentTitle.isEmpty() ? currentTitle : currentUrl;
@@ -115,8 +149,7 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         });
         rightPanel.add(bookmarkButton);
         
-        themeButton = new JButton("\u2600");
-        themeButton.setToolTipText("切换亮色/暗色主题");
+        themeButton = createToolButton("\u2600", "切换亮色/暗色主题");
         themeButton.addActionListener(e -> {
             isDarkTheme = !isDarkTheme;
             applyTheme();
@@ -124,8 +157,7 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         });
         rightPanel.add(themeButton);
         
-        brightnessButton = new JButton("☀");
-        brightnessButton.setToolTipText("调节亮度");
+        brightnessButton = createToolButton("\u263C", "调节亮度");
         brightnessButton.addActionListener(e -> {
             brightnessLevel = (brightnessLevel + 1) % 6;
             browserWrapper.setBrightnessLevel(brightnessLevel - 2);
@@ -136,8 +168,7 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         });
         rightPanel.add(brightnessButton);
         
-        colorButton = new JButton("\uD83C\uDFA8");
-        colorButton.setToolTipText("自定义文字颜色");
+        colorButton = createToolButton("\u25A0", "自定义文字颜色");
         colorButton.addActionListener(e -> {
             Color initialColor = Color.decode(customTextColor);
             JColorChooser colorChooser = new JColorChooser(initialColor);
@@ -169,6 +200,11 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         toolbar.add(rightPanel, BorderLayout.EAST);
         
         addressBar = new JTextField();
+        addressBar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1, true),
+            BorderFactory.createEmptyBorder(4, 10, 4, 10)
+        ));
+        addressBar.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         addressBar.addActionListener(e -> {
             String url = addressBar.getText().trim();
             if (!url.isEmpty()) {
