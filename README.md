@@ -1,98 +1,91 @@
 # Web Viewer
 
-把 Chromium 浏览器嵌进 IntelliJ IDEA 编辑器标签页的插件：一个网址 = 一个标签页，浏览网页时不用切出 IDE。
+把 Chromium 浏览器嵌进 IntelliJ IDEA 的编辑器标签页：一个网址 = 一个标签页，查资料、看文档不用切出 IDE。
 
-## 功能
+## 安装
 
-| 功能 | 说明 |
+1. `Settings → Plugins → ⚙ → Install Plugin from Disk…`
+2. 选择打包好的 `idea-web-viewer-*.zip`
+3. 重启 IDE
+
+## 怎么打开
+
+装好后有 **三个入口**，都在主菜单 `Tools` 下：
+
+| 入口 | 位置 | 说明 |
+|---|---|---|
+| **Open URL** | `Tools → Open URL` | 主入口，新开一个网页标签页 |
+| 快捷键 | `Ctrl + Shift + U` | 同上，最快的方式 |
+| **Toggle Web Viewer Theme** | `Tools → Toggle Web Viewer Theme` | 切换当前标签页的亮/暗主题 |
+
+> macOS 上快捷键若没生效，去 `Settings → Keymap` 搜 `Open URL` 自行绑定。
+> 快捷键被别的插件占用时也同样处理。
+
+打开后默认加载百度首页。**在顶部地址栏输入任意网址、回车即可跳转**，不写 `https://` 会自动补上。
+
+## 使用说明
+
+打开后的界面从上到下是：**地址栏** + **工具栏** + **网页区域**。
+
+工具栏按钮（从左到右）：
+
+| 按钮 | 作用 |
 |---|---|
-| 地址栏跳转 | 输入网址回车直达，未写协议时自动补 `https://` |
-| 前进 / 后退 / 刷新 | 基于 CEF 原生历史 |
-| 历史记录 | 记录标题、网址与时间，支持跳转、单条删除、清空；上限 200 条 |
-| 书签 | 保存标题与网址，支持跳转、删除；按 URL 去重，上限 300 条 |
-| 暗色 / 亮色主题 | 可对整个标签页套用配色，主题按标签页记忆 |
-| 亮度调节 | 通过 CSS `filter: brightness()` 实现，左暗右亮 |
-| 自定义配色 | 分别设置背景色与文字颜色 |
-| 阅读模式 | 抽取正文生成专注阅读层，可随时退出 |
-| 繁转简 | 对内嵌页面做繁体转简体批量转换 |
-| 标签页内打开 | `Ctrl+点击` 链接或 `target=_blank` / `window.open` 都在编辑器内新开标签，不弹独立窗口 |
+| 后退 / 前进 | 页面历史导航，不可用时自动置灰 |
+| 刷新 | 重新加载当前页面 |
+| 历史 | 打开历史记录窗口：双击跳转、删除单条、清空全部（最多保留 200 条） |
+| 阅读 | 抽取正文进入专注阅读模式，按钮变「退出」，再点返回原页面 |
+| 简转 | 把当前页面正文里的繁体字批量转成简体 |
+| 收藏 | 打开书签窗口：填标题/网址添加，双击跳转、删除（按网址去重，最多 300 条） |
+| 暗色 / 亮色 | 切换整页配色，主题按标签页记住 |
+| 亮度滑块 | 左暗右亮，靠 CSS 滤镜实现，不改变页面本身 |
+| 配色 | 自定义网页的背景色和文字颜色，可一键重置 |
+
+几个顺手的行为：
+
+- **同一网址重复打开会复用已有标签页**，不会开一堆重复页；
+- 网页里的 `Ctrl+点击`、`target=_blank`、`window.open` 都会在编辑器内新开标签，不弹独立窗口；
+- 关掉标签页就结束浏览，网址本身不会保存，需要留存请用「收藏」。
 
 ## 环境要求
 
-- IntelliJ IDEA **263 及以上的 263.x**（`since-build=263`，`until-build=263.*`）
-  - 目标版本：**IU-263.7307.200**（产品版本 2026.2.2 / 2026.3，JCEF 150.0.14），已实测编译 + 安装运行
-- 构建使用 JDK 17+（`gradle.properties` 中指定了 `org.gradle.java.home`，按需修改）
-- **必须**有 `com.intellij.modules.jcef` 插件：263 起 `org.cef.*` 才从平台核心 jar
-  （`lib/lib-client.jar`）移入这个独立插件，缺了它类加载会直接失败。
-  也正因为该模块 id 在 241~262 中并不存在（JCEF 当时随平台发布），插件只声明支持 263+
+- IntelliJ IDEA **263.x**（`since-build=263`，`until-build=263.*`）
+- 需要 IDE 自带的 `com.intellij.modules.jcef` 插件（默认启用，不要关掉）
 
-## 构建与运行
+> 2024.1 ~ 2026.2（241~262）暂不支持：这些版本的 JCEF 随平台发布，没有可以声明的模块 id，
+> 与 263 的依赖方式不兼容。
+
+## 常见问题
+
+**打开后是空白页 / 一直转圈**
+Chromium 内核首次启动需要几秒，稍等即可；仍然空白就重启 IDE 再试。
+
+**提示「当前 IDE 未启用 JCEF」**
+在 `Settings → Plugins` 里确认 `Web Browser (JCEF)` 处于启用状态。
+
+**某些网站显示错乱或按钮点不动**
+插件会往页面注入页边距、配色等样式，个别站点可能受影响。可以先关掉「暗色」和「配色」再试。
+
+## 开发
 
 ```bash
-# 编译
-./gradlew compileJava
-
-# 单元测试
-./gradlew test
-
-# 生成可分发的 zip（产物在 build/distributions/）
-./gradlew buildPlugin
-
-# 在沙箱 IDE 里调试运行
-./gradlew runIde
+./gradlew compileJava    # 编译
+./gradlew test           # 单元测试
+./gradlew buildPlugin    # 打包，产物在 build/distributions/
+./gradlew runIde         # 启动带插件的沙箱 IDE
 ```
 
-> Gradle Wrapper 固定为 8.6：`org.jetbrains.intellij` 1.17.4 只在 Gradle 8.x 上验证过，请勿随意升级到 Gradle 9。
+> Gradle Wrapper 固定 8.6：`org.jetbrains.intellij` 1.17.4 只在 Gradle 8.x 上验证过，不要升到 Gradle 9。
 
-## 适配新版 IDE（263 及以后）
-
-从 2026.x 起，JetBrains 平台部分模块是 **Java 25 字节码**（例如 `JBCefBrowser` 的 class 版本为 69），
-并且 IDE 分发包按 `plugins/<id>/lib/modules/*.jar` 的模块化布局组织。若只在 Gradle 里改版本，
-遇到内网拉不到 `cache-redirector.jetbrains.com` 时无法编译。
-
-可以用脚本直接拿本机已安装的 IDE 当编译目标，验证源码与目标平台 API 是否兼容：
+升级目标 IDE 版本时，除了改 `build.gradle.kts` 里的 `untilBuild`，建议再跑一次兼容性验证
+（用本机已安装的 IDE 当编译目标，JDK 25 会自动从 `JAVA_HOME` 或 IDE 自带 `jbr` 中挑选）：
 
 ```powershell
-# JDK 25 会自动从 JAVA_HOME / IDE 自带 jbr 中挑选
 ./scripts/verify-against-ide.ps1 -IdePath "C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.2"
 ```
 
-脚本会用 JDK 25 的 `javac` 编译 `src/main/java`（产物只用于验证，不参与打包），
-输出 `OK` 且退出码为 0 即表示兼容。升级目标版本时改 `build.gradle.kts` 里的
-`untilBuild`，再跑一次脚本确认即可。
-
-## 使用方式
-
-1. `Tools → Open URL`（快捷键 `Ctrl+Shift+U`）打开浏览器标签页；
-2. `Tools → Toggle Web Viewer Theme` 或工具栏「暗色/亮色」按钮切换主题；
-3. 在地址栏输入网址回车即可访问。
-
-## 项目结构
-
-```
-src/main/java/com/idea/webviewer/
-├─ action/          入口动作：OpenUrlAction、ToggleThemeAction
-├─ editor/          WebViewerEditor（Swing UI）、JBCefBrowserWrapper（JCEF 与脚本注入）、
-│                   WebViewerEditorProvider（*.webpage 路由）
-├─ bookmark/        书签存储与对话框
-├─ history/         历史记录存储与对话框
-├─ storage/         无第三方依赖的记录编解码与旧数据迁移
-└─ util/            临时 .webpage 文件管理（创建、复用、清理）
-```
-
-## 实现要点
-
-插件把「编辑器标签页」建模成一个临时文件：`%TEMP%/idea-webviewer/webpage_*.webpage`，文件内容就是网址。`WebViewerEditorProvider` 只接管 `.webpage` 扩展名，所以打开该文件时渲染的是浏览器而不是文本编辑器。
-
-- 同一网址重复打开会复用已有标签页；超过 6 小时的残留临时文件会在下次创建时清理。
-- 历史记录与书签保存在应用级 `PropertiesComponent` 中，使用 Base64 行格式序列化（不依赖 Gson）；从 1.0.1 升级时会自动迁移旧的 JSON 数据。
-- 打开标签页走 `OpenFileDescriptor.navigate(true)`（`Navigatable` 接口），而不是
-  `FileEditorManager.openFile`——后者在 263 上所有重载都已被标记为过时。
-- 创建浏览器前会用 `JBCefApp.isSupported()` 探测 JCEF；不可用时显示提示而不是抛异常。
-- 页面注入逻辑（页边距、暗色配色、亮度、弹窗拦截、阅读模式、繁简转换）都在 `JBCefBrowserWrapper` 中，通过 `CefLoadHandler.onLoadEnd` 在每次加载完成后重新注入。
-
 ## 已知限制
 
-- 阅读模式的正文抽取是基于 DOM 启发式的，复杂页面可能抽不准。
-- 繁简转换使用 `src/main/resources/opencc.js`（AutoCF AutoHan 的复刻实现），词级转换能力有限。
-- 插件不解析网页里的下载请求，点击下载链接不会触发 IDE 的下载流程。
+- 阅读模式的正文抽取基于 DOM 启发式，结构特殊的页面可能抽不准；
+- 繁简转换是字级映射（`src/main/resources/opencc.js`），不处理词组差异；
+- 点击网页里的下载链接不会触发 IDE 的下载流程。
