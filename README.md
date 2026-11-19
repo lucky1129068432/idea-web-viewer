@@ -17,7 +17,6 @@
 | **Open URL** | 主工具栏最右侧（地球图标） | 主入口，点了就开新标签页 |
 | Open URL | `Tools → Open URL` | 菜单里同样可以打开 |
 | 快捷键 | `Ctrl + Shift + U` | 最快的方式 |
-| **Toggle Web Viewer Theme** | `Tools → Toggle Web Viewer Theme` | 切换当前标签页的亮/暗主题 |
 
 > 如果工具栏上没有这个按钮（被手动移除过）：右键工具栏 → `Customize Toolbar…` →
 > 找到 `Open URL` 拖回工具栏即可。
@@ -25,7 +24,7 @@
 > macOS 上快捷键若没生效，去 `Settings → Keymap` 搜 `Open URL` 自行绑定；
 > 被别的插件占用时也同样处理。
 
-打开后默认加载百度首页。**在顶部地址栏输入任意网址、回车即可跳转**，不写 `https://` 会自动补上。
+打开后默认加载百度首页，**默认深色主题、亮度最暗**。**在顶部地址栏输入任意网址、回车即可跳转**，不写 `https://` 会自动补上。
 
 ## 使用说明
 

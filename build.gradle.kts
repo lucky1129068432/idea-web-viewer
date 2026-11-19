@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.idea.webviewer"
-version = "1.0.6"
+version = "1.0.7"
 
 repositories {
     maven { url = uri("https://maven.aliyun.com/repository/public") }
@@ -23,7 +23,7 @@ intellij {
 }
 
 dependencies {
-    // 仅用于单元测试；运行期依赖全部来自 IntelliJ 平台
+    // 浠呯敤浜庡崟鍏冩祴璇曪紱杩愯鏈熶緷璧栧叏閮ㄦ潵鑷?IntelliJ 骞冲彴
     testImplementation("junit:junit:4.13.2")
 }
 
@@ -33,8 +33,8 @@ tasks {
     }
 
     patchPluginXml {
-        // 263 起 org.cef.* 才从平台核心 jar 移到独立的 com.intellij.modules.jcef 插件，
-        // 也才存在这个模块 id；241~262 既没有该 id（硬依赖装不上），263 又必须要它（否则类加载失败）
+        // 263 璧?org.cef.* 鎵嶄粠骞冲彴鏍稿績 jar 绉诲埌鐙珛鐨?com.intellij.modules.jcef 鎻掍欢锛?
+        // 涔熸墠瀛樺湪杩欎釜妯″潡 id锛?41~262 鏃㈡病鏈夎 id锛堢‖渚濊禆瑁呬笉涓婏級锛?63 鍙堝繀椤昏瀹冿紙鍚﹀垯绫诲姞杞藉け璐ワ級
         sinceBuild.set("263")
         untilBuild.set("263.*")
     }

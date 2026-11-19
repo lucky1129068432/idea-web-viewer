@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.idea.webviewer</id>
     <name>Web Viewer</name>
-    <version>1.0.6</version>
+    <version>1.0.7</version>
     <vendor email="1129068432@qq.com" url="https://gitee.com/huiyif/idea-web-viewer">WebViewer</vendor>
 
     <description><![CDATA[
@@ -28,6 +28,8 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        1.0.7 - 打开网页默认使用深色主题、亮度最暗（滑块默认在最左端）；
+                Toggle Web Viewer Theme 不再占用菜单/工具栏，改由网页工具栏的「暗色/亮色」按钮切换
         1.0.6 - Open URL 默认出现在主工具栏（并配上图标），不再需要手动拖到工具栏
         1.0.5 - 修正依赖声明：org.cef.* 在 263 上只随 com.intellij.modules.jcef 插件提供，
                 去掉该依赖会导致 NoClassDefFoundError（org.cef.handler.CefLoadHandler），已恢复为必需依赖；
@@ -53,9 +55,9 @@
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift U"/>
         </action>
 
-        <action id="WebViewer.ToggleTheme" class="com.idea.webviewer.action.ToggleThemeAction" text="Toggle Web Viewer Theme" description="Switch the Web Viewer tab between light and dark theme">
-            <add-to-group group-id="ToolsMenu" anchor="after" relative-to-action="WebViewer.OpenUrl"/>
-        </action>
+        <!-- 主题切换只在网页工具栏的「暗色/亮色」按钮上提供，不在菜单/工具栏里占位；
+             保留 action 声明，便于在 Search Everywhere 里按名字唤起 -->
+        <action id="WebViewer.ToggleTheme" class="com.idea.webviewer.action.ToggleThemeAction" text="Toggle Web Viewer Theme" description="Switch the Web Viewer tab between light and dark theme"/>
 
     </actions>
 

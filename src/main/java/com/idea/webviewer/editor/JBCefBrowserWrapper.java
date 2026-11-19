@@ -339,7 +339,8 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
         }
     }
 
-    private int brightnessLevel = 0;
+    /** 默认最暗（5 = brightness(0.4)），对应亮度滑块最左端。 */
+    private int brightnessLevel = 5;
     private String customBgColor = "#1e1e1e";
     private String customTextColor = "#d4d4d4";
     private boolean colorsModified = false;

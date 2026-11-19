@@ -220,7 +220,8 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         });
         rightButtons.add(themeButton);
 
-        brightnessSlider = new JSlider(JSlider.HORIZONTAL, 0, 10, 5);
+        // 初始值与 JBCefBrowserWrapper 的默认亮度对齐：最左端 = 最暗
+        brightnessSlider = new JSlider(JSlider.HORIZONTAL, 0, 10, 0);
         brightnessSlider.setPreferredSize(new Dimension(150, 25));
         brightnessSlider.setToolTipText("调节亮度（左暗右亮）");
         brightnessSlider.addChangeListener(e -> {

@@ -20,8 +20,9 @@ public class ToggleThemeAction extends AnAction {
 
     private static final Map<VirtualFile, Boolean> fileThemeMap = new ConcurrentHashMap<>();
 
+    /** 默认使用深色主题；用户在标签页里切换过的选择会被记住。 */
     public static boolean isDarkTheme(VirtualFile file) {
-        return fileThemeMap.getOrDefault(file, false);
+        return fileThemeMap.getOrDefault(file, true);
     }
 
     public static void setDarkTheme(VirtualFile file, boolean dark) {
