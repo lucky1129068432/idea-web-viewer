@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.idea.webviewer"
-version = "1.0.5"
+version = "1.0.6"
 
 repositories {
     maven { url = uri("https://maven.aliyun.com/repository/public") }

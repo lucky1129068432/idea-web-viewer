@@ -10,17 +10,17 @@
 
 ## 怎么打开
 
-装好后从**主工具栏的 `Open URL` 按钮**打开，点一下就新开一个网页标签页。
+装好后从**主工具栏最右侧的地球图标（Open URL）**打开，点一下就新开一个网页标签页。
 
 | 入口 | 位置 | 说明 |
 |---|---|---|
-| **Open URL** | 主工具栏按钮 | 主入口，点了就开新标签页 |
-| Open URL | `Tools → Open URL` | 工具栏上没有该按钮时用这个 |
+| **Open URL** | 主工具栏最右侧（地球图标） | 主入口，点了就开新标签页 |
+| Open URL | `Tools → Open URL` | 菜单里同样可以打开 |
 | 快捷键 | `Ctrl + Shift + U` | 最快的方式 |
 | **Toggle Web Viewer Theme** | `Tools → Toggle Web Viewer Theme` | 切换当前标签页的亮/暗主题 |
 
-> 工具栏上找不到 `Open URL` 按钮时：在工具栏空白处右键 → `Customize Toolbar…` →
-> 找到 `Open URL` 拖进工具栏即可。
+> 如果工具栏上没有这个按钮（被手动移除过）：右键工具栏 → `Customize Toolbar…` →
+> 找到 `Open URL` 拖回工具栏即可。
 >
 > macOS 上快捷键若没生效，去 `Settings → Keymap` 搜 `Open URL` 自行绑定；
 > 被别的插件占用时也同样处理。
