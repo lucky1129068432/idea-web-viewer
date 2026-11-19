@@ -4,9 +4,12 @@
 
 ## 安装
 
-1. `Settings → Plugins → ⚙ → Install Plugin from Disk…`
-2. 选择打包好的 `idea-web-viewer-*.zip`
-3. 重启 IDE
+1. 从 [Releases](https://gitee.com/huiyif/idea-web-viewer/releases) 下载最新安装包（或自行 `./gradlew buildPlugin`）
+2. `Settings → Plugins → ⚙ → Install Plugin from Disk…`
+3. 选择打包好的 `idea-web-viewer-*.zip`
+4. 重启 IDE
+
+> 各版本更新说明见仓库根目录的 `release-notes-<版本>.md`。
 
 ## 怎么打开
 
