@@ -90,6 +90,21 @@ Chromium 内核首次启动需要几秒，稍等即可；仍然空白就重启 I
 ./scripts/verify-against-ide.ps1 -IdePath "C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.2"
 ```
 
+### 发版
+
+一条命令完成「打 tag → 打包 → 创建 Gitee Release → 上传安装包附件」：
+
+```powershell
+./scripts/publish-release.ps1 -DryRun   # 预演：只打印将执行的动作，不发任何请求
+./scripts/publish-release.ps1           # 正式发布
+```
+
+- 版本号取自 `build.gradle.kts`，也可用 `-Version` 覆盖；
+- Release 正文取 `release-notes-<版本>.md`，没有则回退到 `plugin.xml` 里的 change-notes；
+- 令牌从 `-Token` / 环境变量 `GITEE_TOKEN` / `%TEMP%\gitee_token.txt` 依次读取（需 `projects` 权限）；
+- 重复执行是安全的：Release 已存在则更新正文，附件已存在则跳过上传；
+- 构建默认优先用 PATH 上的 `gradle`，没有才用 `gradlew.bat`（可用 `-GradleExe` 指定）。
+
 ## 已知限制
 
 - 阅读模式的正文抽取基于 DOM 启发式，结构特殊的页面可能抽不准；
