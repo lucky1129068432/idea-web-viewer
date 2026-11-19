@@ -1,8 +1,8 @@
 <idea-plugin>
     <id>com.idea.webviewer</id>
     <name>Web Viewer</name>
-    <version>1.0.0</version>
-    <vendor email="support@example.com" url="http://example.com">WebViewer</vendor>
+    <version>1.0.5</version>
+    <vendor email="1129068432@qq.com" url="https://gitee.com/huiyif/idea-web-viewer">WebViewer</vendor>
 
     <description><![CDATA[
         A web browser embedded in the IDEA editor, providing a complete web browsing experience.<br/>
@@ -28,17 +28,31 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        1.0.5 - 修正依赖声明：org.cef.* 在 263 上只随 com.intellij.modules.jcef 插件提供，
+                去掉该依赖会导致 NoClassDefFoundError（org.cef.handler.CefLoadHandler），已恢复为必需依赖；
+                同时把兼容范围收窄到 263（该模块 id 在 241~262 中并不存在）
+        1.0.4 - 打开标签页改用未过时的 Navigatable.navigate；JCEF 不可用时降级提示
+        1.0.3 - 适配 IntelliJ IDEA 263（2026.2.2 / 2026.3，IU-263.7307.200，JCEF 150）：
+                until-build 放宽到 263.*
+        1.0.2 - 修复历史记录删除错位、地址栏回车重复导航；补齐 Toggle Theme 动作注册；
+                移除未声明的 Gson 依赖（自动迁移旧数据）；同一地址复用已有标签页并清理临时文件；
+                移除阅读模式中的站点专属选择器
         1.0.0 - 初始版本
     ]]></change-notes>
 
-    <idea-version since-build="261"/>
+    <idea-version since-build="263"/>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.jcef</depends>
 
     <actions>
         <action id="WebViewer.OpenUrl" class="com.idea.webviewer.action.OpenUrlAction" text="Open URL" description="Open URL in editor">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift U"/>
+        </action>
+
+        <action id="WebViewer.ToggleTheme" class="com.idea.webviewer.action.ToggleThemeAction" text="Toggle Web Viewer Theme" description="Switch the Web Viewer tab between light and dark theme">
+            <add-to-group group-id="ToolsMenu" anchor="after" relative-to-action="WebViewer.OpenUrl"/>
         </action>
 
     </actions>

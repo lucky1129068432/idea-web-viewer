@@ -5,6 +5,9 @@
 build/
 .gradle/
 
+# 误把解包出的插件描述放到仓库根目录时，不要提交
+/META-INF/
+
 # Compiled class file
 *.class
 
@@ -19,6 +22,8 @@ build/
 
 # Package Files #
 *.jar
+# Gradle Wrapper 的 jar 必须提交，否则 ./gradlew 无法运行
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear

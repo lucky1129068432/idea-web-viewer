@@ -2,6 +2,7 @@ package com.idea.webviewer.editor;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.ui.jcef.JBCefApp;
 import com.intellij.ui.jcef.JBCefBrowser;
 import com.intellij.util.ui.UIUtil;
 import org.cef.browser.CefBrowser;
@@ -9,7 +10,9 @@ import org.cef.browser.CefFrame;
 import org.cef.CefSettings;
 import org.cef.handler.CefDisplayHandler;
 import org.cef.handler.CefLoadHandler;
+import org.cef.handler.CefLifeSpanHandlerAdapter;
 import org.cef.handler.CefLoadHandler.ErrorCode;
+import org.cef.handler.CefRequestHandlerAdapter;
 import org.cef.network.CefRequest;
 
 import javax.swing.*;
@@ -24,7 +27,7 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     private boolean disposed = false;
     private UrlChangeListener urlChangeListener;
     private TitleChangeListener titleChangeListener;
-    private String currentPageTitle = "";
+    private OpenNewTabListener openNewTabListener;
 
     private static final String PAGE_PADDING_CSS =
         "(function() {" +
@@ -38,10 +41,76 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
     public JBCefBrowserWrapper() {
         super(new BorderLayout());
+        // 插件不再硬依赖 com.intellij.modules.jcef（该 id 在 241/242 上根本不存在），
+        // 因此这里必须能优雅降级，而不是抛 NoClassDefFoundError。
+        if (!JBCefApp.isSupported()) {
+            browser = null;
+            JLabel hint = new JLabel("当前 IDE 未启用 JCEF，无法内嵌浏览器", SwingConstants.CENTER);
+            hint.setEnabled(false);
+            add(hint, BorderLayout.CENTER);
+            return;
+        }
         browser = new JBCefBrowser("about:blank");
         add(browser.getComponent(), BorderLayout.CENTER);
+        setupRequestHandler();
+        setupLifeSpanHandler();
         setupDarkModeSupport();
         setupTitleHandler();
+    }
+
+    /** JCEF 是否可用；不可用时所有浏览相关操作都变成空操作。 */
+    private boolean isBrowserAvailable() {
+        return browser != null;
+    }
+
+    /**
+     * 拦截 CEF 原生弹窗，避免 window.open / target=_blank 等请求弹出脱离编辑器的独立窗口。
+     * 由 CEF 的 onBeforePopup 统一接管，可覆盖 iframe、页面加载过程中等 JS 注入覆盖不到的路径。
+     */
+    private void setupLifeSpanHandler() {
+        browser.getJBCefClient().addLifeSpanHandler(new CefLifeSpanHandlerAdapter() {
+            @Override
+            public boolean onBeforePopup(CefBrowser cefBrowser, CefFrame frame, String targetUrl, String targetFrameName) {
+                // 返回 true 表示弹窗由我们处理，CEF 不再创建新的顶层窗口
+                if (targetUrl != null && !targetUrl.isEmpty()) {
+                    OpenNewTabListener listener = openNewTabListener;
+                    if (listener != null) {
+                        listener.onOpenNewTab(targetUrl);
+                    }
+                }
+                return true;
+            }
+        }, browser.getCefBrowser());
+    }
+
+    private void setupRequestHandler() {
+        browser.getJBCefClient().addRequestHandler(new CefRequestHandlerAdapter() {
+            @Override
+            public boolean onBeforeBrowse(CefBrowser browser, CefFrame frame, CefRequest request, boolean userGesture, boolean isRedirect) {
+                String url = request.getURL();
+                if (url.startsWith("webviewer://")) {
+                    if (url.startsWith("webviewer://open_new_tab?")) {
+                        String params = url.substring("webviewer://open_new_tab?".length());
+                        String[] parts = params.split("&");
+                        for (String part : parts) {
+                            if (part.startsWith("url=")) {
+                                String targetUrl = part.substring(4);
+                                try {
+                                    targetUrl = java.net.URLDecoder.decode(targetUrl, "UTF-8");
+                                } catch (java.io.UnsupportedEncodingException e) {
+                                }
+                                if (openNewTabListener != null) {
+                                    openNewTabListener.onOpenNewTab(targetUrl);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        }, browser.getCefBrowser());
     }
 
     private void setupTitleHandler() {
@@ -49,7 +118,6 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             @Override
             public void onTitleChange(CefBrowser browser, String title) {
                 if (title != null && !title.isEmpty()) {
-                    currentPageTitle = title;
                     if (titleChangeListener != null) {
                         SwingUtilities.invokeLater(() -> titleChangeListener.onTitleChanged(title));
                     }
@@ -76,6 +144,9 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             public boolean onCursorChange(CefBrowser browser, int cursorType) {
                 return false;
             }
+
+            @Override
+            public void onFullscreenModeChange(CefBrowser browser, boolean fullscreen) {}
         }, browser.getCefBrowser());
     }
 
@@ -84,14 +155,34 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     }
 
     public void loadUrl(String url) {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://" + url;
+        if (!isBrowserAvailable()) {
+            return;
+        }
+        String target = normalizeUrl(url);
+        if (target.isEmpty()) {
+            return;
         }
         if (isReaderMode) {
             isReaderMode = false;
             exitReaderMode();
         }
-        browser.loadURL(url);
+        browser.loadURL(target);
+    }
+
+    /** 补全地址：只有没写协议时才补 https，about:/file:/data: 等保持原样。 */
+    private static String normalizeUrl(String url) {
+        String trimmed = url == null ? "" : url.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        if (trimmed.contains("://")
+            || trimmed.startsWith("about:")
+            || trimmed.startsWith("file:")
+            || trimmed.startsWith("data:")
+            || trimmed.startsWith("view-source:")) {
+            return trimmed;
+        }
+        return "https://" + trimmed;
     }
 
     public void setDarkTheme(boolean dark) {
@@ -115,6 +206,9 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     }
 
     public void refresh() {
+        if (!isBrowserAvailable()) {
+            return;
+        }
         browser.getCefBrowser().reload();
     }
 
@@ -140,18 +234,18 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     }
 
     public boolean canGoBack() {
-        return browser.getCefBrowser().canGoBack();
+        return isBrowserAvailable() && browser.getCefBrowser().canGoBack();
     }
 
     public boolean canGoForward() {
-        return browser.getCefBrowser().canGoForward();
+        return isBrowserAvailable() && browser.getCefBrowser().canGoForward();
     }
 
     public String getUrl() {
-        if (browser.getCefBrowser() != null) {
-            return browser.getCefBrowser().getURL();
+        if (!isBrowserAvailable() || browser.getCefBrowser() == null) {
+            return "";
         }
-        return "";
+        return browser.getCefBrowser().getURL();
     }
 
     public void setUrlChangeListener(UrlChangeListener listener) {
@@ -170,23 +264,6 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
         this.titleChangeListener = listener;
     }
 
-    public String getPageTitle() {
-        return currentPageTitle;
-    }
-
-    private void fetchPageTitle() {
-        // Title is obtained via CefDisplayHandler.onTitleChange, no JS needed
-    }
-
-    public void setPageTitle(String title) {
-        if (title != null && !title.isEmpty()) {
-            this.currentPageTitle = title;
-            if (titleChangeListener != null) {
-                titleChangeListener.onTitleChanged(title);
-            }
-        }
-    }
-
     private void setupDarkModeSupport() {
         browser.getJBCefClient().addLoadHandler(new CefLoadHandler() {
             @Override
@@ -195,7 +272,6 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
                 injectPopupInterceptor();
                 applyDarkMode();
                 notifyUrlChanged();
-                fetchPageTitle();
                 if (isReaderMode) {
                     injectReaderMode();
                 }
@@ -212,6 +288,11 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
             @Override
             public void onLoadStart(CefBrowser browser, CefFrame frame, CefRequest.TransitionType transitionType) {
+                // 新页面加载会重建 DOM，需允许重新注入亮度与配色
+                if (frame != null && frame.isMain()) {
+                    lastAppliedFilter = null;
+                    colorsInjected = false;
+                }
                 notifyUrlChanged();
             }
         }, browser.getCefBrowser());
@@ -229,11 +310,15 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             "  if (window.__webviewer_link_handler__) return;" +
             "  window.__webviewer_link_handler__ = true;" +
             "  document.addEventListener('click', function(e) {" +
-            "    var el = e.target;" +
-            "    while (el && el.tagName !== 'A') el = el.parentElement;" +
-            "    if (el && el.tagName === 'A' && el.getAttribute('target') === '_blank') {" +
-            "      e.preventDefault();" +
-            "      window.location.href = el.href;" +
+            "    var el = e.target.closest('a');" +
+            "    if (el && el.href) {" +
+            "      if (e.ctrlKey || e.metaKey) {" +
+            "        e.preventDefault();" +
+            "        window.location.href = 'webviewer://open_new_tab?url=' + encodeURIComponent(el.href);" +
+            "      } else if (el.getAttribute('target') === '_blank') {" +
+            "        e.preventDefault();" +
+            "        window.location.href = el.href;" +
+            "      }" +
             "    }" +
             "  });" +
             "  var originalOpen = window.open;" +
@@ -255,9 +340,12 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     }
 
     private int brightnessLevel = 0;
-    private String customTextColor = "#c0c0c0";
+    private String customBgColor = "#1e1e1e";
+    private String customTextColor = "#d4d4d4";
+    private boolean colorsModified = false;
     private boolean isReaderMode = false;
-    private String originalHtml = null;
+    private String lastAppliedFilter = null;
+    private boolean colorsInjected = false;
 
     public void setBrightnessLevel(int level) {
         this.brightnessLevel = level;
@@ -267,17 +355,20 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
         }
     }
 
-    public void setCustomTextColor(String color) {
-        this.customTextColor = color;
+    public void setCustomColors(String bgColor, String textColor) {
+        this.customBgColor = bgColor;
+        this.customTextColor = textColor;
+        this.colorsModified = true;
         applyBrightness();
+        if (isReaderMode) {
+            injectReaderMode();
+        }
     }
 
-    public String getCustomTextColor() {
-        return customTextColor;
-    }
-
-    public int getBrightnessLevel() {
-        return brightnessLevel;
+    public void resetCustomColors() {
+        this.colorsModified = false;
+        clearCustomColors();
+        applyBrightness();
     }
 
     private void applyDarkMode() {
@@ -286,54 +377,75 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
     private void applyBrightness() {
         if (disposed) return;
-        String filter;
-        switch (brightnessLevel) {
-            case 0:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg)" : "";
-                break;
-            case 1:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg) brightness(0.9)" : "brightness(0.9)";
-                break;
-            case 2:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg) brightness(0.8)" : "brightness(0.8)";
-                break;
-            case 3:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg) brightness(0.7)" : "brightness(0.7)";
-                break;
-            case -1:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg) brightness(1.1)" : "brightness(1.1)";
-                break;
-            case -2:
-                filter = isDarkTheme ? "invert(1) hue-rotate(180deg) brightness(1.2)" : "brightness(1.2)";
-                break;
-            default:
-                filter = "";
+        String filter = brightnessFilter(brightnessLevel);
+        // 亮度值未变化时不再重复注入，避免根节点 filter 触发整页重绘造成卡顿
+        if (!filter.equals(lastAppliedFilter)) {
+            lastAppliedFilter = filter;
+            executeJavaScript("document.documentElement.style.filter = '" + filter + "';");
         }
-        executeJavaScript("document.documentElement.style.filter = '" + filter + "';");
-        injectDarkModeTextColor(isDarkTheme, customTextColor);
+        if (isDarkTheme || colorsModified) {
+            injectCustomColors(customBgColor, customTextColor);
+        } else if (colorsInjected) {
+            clearCustomColors();
+        }
     }
 
-    private void injectDarkModeTextColor(boolean dark, String color) {
+    /** 亮度等级（-5..5，0 为原始亮度）到 CSS filter 的映射。 */
+    private static String brightnessFilter(int level) {
+        return switch (level) {
+            case 1 -> "brightness(0.9)";
+            case 2 -> "brightness(0.8)";
+            case 3 -> "brightness(0.7)";
+            case 4 -> "brightness(0.55)";
+            case 5 -> "brightness(0.4)";
+            case -1 -> "brightness(1.1)";
+            case -2 -> "brightness(1.2)";
+            case -3 -> "brightness(1.3)";
+            case -4 -> "brightness(1.4)";
+            case -5 -> "brightness(1.5)";
+            default -> "";
+        };
+    }
+
+    private void injectCustomColors(String bgColor, String textColor) {
         if (disposed) return;
+        colorsInjected = true;
+        String css =
+            "html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, details, embed, figure, figcaption, footer, header, hgroup, menu, nav, output, ruby, section, summary, time, mark, audio, video { background-color: " + bgColor + " !important; color: " + textColor + " !important; } " +
+            "body { background-color: " + bgColor + " !important; } " +
+            "a { color: #6bb3ff !important; } " +
+            "a:hover { color: #8bc3ff !important; }";
+        // 样式内容未变化时直接跳过，避免「移除再重建 style」触发重复的全页样式重算
         String script =
-            "(function(isDark, textColor) {" +
-            "  var id = '__webviewer_dark_text__';" +
+            "(function() {" +
+            "  var id = '__webviewer_custom_colors__';" +
+            "  var css = '" + css + "';" +
             "  var existing = document.getElementById(id);" +
-            "  if (isDark) {" +
-            "    if (existing) existing.remove();" +
-            "    var style = document.createElement('style');" +
-            "    style.id = id;" +
-            "    style.textContent = 'body, p, div, span, h1, h2, h3, h4, h5, h6, a, li, td, th, label, input, textarea { color: ' + textColor + ' !important; }';" +
-            "    document.head.appendChild(style);" +
-            "  } else {" +
-            "    if (existing) existing.remove();" +
+            "  if (existing) {" +
+            "    if (existing.textContent !== css) existing.textContent = css;" +
+            "    return;" +
             "  }" +
-            "})(" + dark + ", '" + color + "');";
+            "  var style = document.createElement('style');" +
+            "  style.id = id;" +
+            "  style.textContent = css;" +
+            "  document.head.appendChild(style);" +
+            "})();";
+        executeJavaScript(script);
+    }
+
+    private void clearCustomColors() {
+        if (disposed) return;
+        colorsInjected = false;
+        String script =
+            "(function() {" +
+            "  var existing = document.getElementById('__webviewer_custom_colors__');" +
+            "  if (existing) existing.remove();" +
+            "})();";
         executeJavaScript(script);
     }
 
     private void executeJavaScript(String script) {
-        if (disposed) return;
+        if (disposed || !isBrowserAvailable()) return;
         UIUtil.invokeLaterIfNeeded(() -> {
             if (!disposed && browser.getCefBrowser() != null) {
                 browser.getCefBrowser().executeJavaScript(script, browser.getCefBrowser().getURL(), 0);
@@ -357,27 +469,24 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
     private void injectReaderMode() {
         if (disposed) return;
-        boolean dark = isDarkTheme;
-        String bg = dark ? "#1e1e1e" : "#fafafa";
-        String fg = dark ? "#d4d4d4" : "#333";
-        String titleColor = dark ? "#e0e0e0" : "#222";
-        String hrColor = dark ? "#444" : "#ddd";
-        String linkColor = dark ? "#6bb3ff" : "#0066cc";
-        String quoteColor = dark ? "#888" : "#555";
-        String codeBg = dark ? "#2d2d2d" : "#f0f0f0";
-        String thBg = dark ? "#333" : "#f5f5f5";
-        String borderColor = dark ? "#444" : "#ddd";
-        String filter = "";
-        if (brightnessLevel == 1) filter = dark ? "brightness(0.9)" : "brightness(0.9)";
-        else if (brightnessLevel == 2) filter = dark ? "brightness(0.8)" : "brightness(0.8)";
-        else if (brightnessLevel == 3) filter = dark ? "brightness(0.7)" : "brightness(0.7)";
-        else if (brightnessLevel == -1) filter = dark ? "brightness(1.1)" : "brightness(1.1)";
-        else if (brightnessLevel == -2) filter = dark ? "brightness(1.2)" : "brightness(1.2)";
+        String bg = customBgColor;
+        String fg = customTextColor;
+        String titleColor = fg;
+        String hrColor = fg.equals("#d4d4d4") || fg.equals("#c0c0c0") ? "#444" : "#aaa";
+        String linkColor = "#6bb3ff";
+        String quoteColor = fg.equals("#d4d4d4") || fg.equals("#c0c0c0") ? "#888" : "#aaa";
+        String codeBg = bg.equals("#1e1e1e") ? "#2d2d2d" : "#f5f5f5";
+        String thBg = bg.equals("#1e1e1e") ? "#333" : "#f0f0f0";
+        String borderColor = hrColor;
 
         String script =
             "(function() {" +
             "  var existing = document.getElementById('__webviewer_reader_mode__');" +
             "  if (existing) existing.remove();" +
+            "  if (window.__webviewer_original_filter__ === undefined) {" +
+            "    window.__webviewer_original_filter__ = document.documentElement.style.filter || '';" +
+            "  }" +
+            "  document.documentElement.style.filter = '';" +
             "  window.__webviewer_original_overflow__ = document.body.style.overflow;" +
             "  function extractContent() {" +
             "    var candidates = [];" +
@@ -405,29 +514,32 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             "  var title = document.title || 'Reading';" +
             "  var overlay = document.createElement('div');" +
             "  overlay.id = '__webviewer_reader_mode__';" +
-            "  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;overflow-y:auto;z-index:999999;background:" + bg + ";color:" + fg + ";font-family: Georgia, \"Noto Serif\", serif;line-height:1.8;font-size:18px;filter:" + filter + "';" +
+            "  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;overflow-y:auto;z-index:999999;background:" + bg + " !important;color:" + fg + " !important;font-family: Georgia, \"Noto Serif\", serif;line-height:1.8;font-size:18px;';" +
             "  var container = document.createElement('div');" +
-            "  container.style.cssText = 'max-width:680px;margin:40px auto;padding:0 24px;';" +
+            "  container.style.cssText = 'max-width:680px;margin:40px auto;padding:0 24px;background:" + bg + " !important;color:" + fg + " !important;';" +
             "  var h1 = document.createElement('h1');" +
             "  h1.textContent = title;" +
-            "  h1.style.cssText = 'font-size:28px;font-weight:600;margin-bottom:12px;line-height:1.3;color:" + titleColor + ";font-family: system-ui, -apple-system, sans-serif;';" +
+            "  h1.style.cssText = 'font-size:28px;font-weight:600;margin-bottom:12px;line-height:1.3;color:" + titleColor + " !important;background:" + bg + " !important;font-family: system-ui, -apple-system, sans-serif;';" +
             "  var hr = document.createElement('hr');" +
             "  hr.style.cssText = 'border:none;border-top:1px solid " + hrColor + ";margin:20px 0;';" +
             "  var article = document.createElement('div');" +
             "  article.innerHTML = content;" +
-            "  article.style.cssText = 'word-wrap:break-word;';" +
+            "  article.style.cssText = 'word-wrap:break-word;background:" + bg + " !important;color:" + fg + " !important;';" +
             "  var style = document.createElement('style');" +
-            "  style.textContent = '#__webviewer_reader_mode__ img, #__webviewer_reader_mode__ figure, #__webviewer_reader_mode__ video { max-width:100%; height:auto; display:block; margin:20px auto; } " +
-            "    #__webviewer_reader_mode__ p { margin:1em 0; } " +
-            "    #__webviewer_reader_mode__ h1, #__webviewer_reader_mode__ h2, #__webviewer_reader_mode__ h3, #__webviewer_reader_mode__ h4 { margin:1.5em 0 0.5em; line-height:1.4; color:" + titleColor + "; font-family: system-ui, -apple-system, sans-serif; } " +
-            "    #__webviewer_reader_mode__ a { color:" + linkColor + "; text-decoration:none; } " +
+            "  style.textContent = 'html, body { background:" + bg + " !important; color:" + fg + " !important; } " +
+            "    #__webviewer_reader_mode__, #__webviewer_reader_mode__ * { background-color:" + bg + " !important; color:" + fg + " !important; } " +
+            "    #__webviewer_reader_mode__ img, #__webviewer_reader_mode__ figure, #__webviewer_reader_mode__ video { max-width:100%; height:auto; display:block; margin:20px auto; background-color:transparent !important; } " +
+            "    #__webviewer_reader_mode__ p { margin:1em 0; color:" + fg + " !important; } " +
+            "    #__webviewer_reader_mode__ h1, #__webviewer_reader_mode__ h2, #__webviewer_reader_mode__ h3, #__webviewer_reader_mode__ h4 { margin:1.5em 0 0.5em; line-height:1.4; color:" + titleColor + " !important; font-family: system-ui, -apple-system, sans-serif; } " +
+            "    #__webviewer_reader_mode__ a { color:" + linkColor + " !important; text-decoration:none; } " +
             "    #__webviewer_reader_mode__ a:hover { text-decoration:underline; } " +
-            "    #__webviewer_reader_mode__ blockquote { border-left:4px solid " + borderColor + "; margin:1em 0; padding-left:16px; color:" + quoteColor + "; } " +
-            "    #__webviewer_reader_mode__ pre, #__webviewer_reader_mode__ code { background:" + codeBg + "; padding:2px 6px; border-radius:3px; font-family: monospace; font-size:0.9em; } " +
+            "    #__webviewer_reader_mode__ blockquote { border-left:4px solid " + borderColor + "; margin:1em 0; padding-left:16px; color:" + quoteColor + " !important; } " +
+            "    #__webviewer_reader_mode__ pre, #__webviewer_reader_mode__ code { background-color:" + codeBg + " !important; color:" + fg + " !important; padding:2px 6px; border-radius:3px; font-family: monospace; font-size:0.9em; } " +
             "    #__webviewer_reader_mode__ pre { padding:12px; overflow-x:auto; } " +
             "    #__webviewer_reader_mode__ table { width:100%; border-collapse:collapse; margin:1em 0; } " +
-            "    #__webviewer_reader_mode__ td, #__webviewer_reader_mode__ th { border:1px solid " + borderColor + "; padding:8px; } " +
-            "    #__webviewer_reader_mode__ th { background:" + thBg + "; }';" +
+            "    #__webviewer_reader_mode__ td, #__webviewer_reader_mode__ th { border:1px solid " + borderColor + "; padding:8px; color:" + fg + " !important; } " +
+            "    #__webviewer_reader_mode__ th { background-color:" + thBg + " !important; } " +
+            "    #__webviewer_reader_mode__ td { background-color:" + bg + " !important; }';" +
             "  container.appendChild(h1);" +
             "  container.appendChild(hr);" +
             "  container.appendChild(article);" +
@@ -448,6 +560,9 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             "  if (window.__webviewer_original_overflow__ !== undefined) {" +
             "    document.body.style.overflow = window.__webviewer_original_overflow__;" +
             "  }" +
+            "  if (window.__webviewer_original_filter__ !== undefined) {" +
+            "    document.documentElement.style.filter = window.__webviewer_original_filter__;" +
+            "  }" +
             "})();";
         executeJavaScript(script);
     }
@@ -455,6 +570,16 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     @Override
     public void dispose() {
         disposed = true;
-        Disposer.dispose(browser);
+        if (browser != null) {
+            Disposer.dispose(browser);
+        }
+    }
+
+    public interface OpenNewTabListener {
+        void onOpenNewTab(String url);
+    }
+
+    public void setOpenNewTabListener(OpenNewTabListener listener) {
+        this.openNewTabListener = listener;
     }
 }

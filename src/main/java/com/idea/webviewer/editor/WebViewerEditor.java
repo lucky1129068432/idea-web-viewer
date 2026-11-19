@@ -1,8 +1,10 @@
 package com.idea.webviewer.editor;
 
+import com.idea.webviewer.action.ToggleThemeAction;
 import com.idea.webviewer.bookmark.BookmarkDialog;
 import com.idea.webviewer.history.HistoryDialog;
 import com.idea.webviewer.history.HistoryManager;
+import com.idea.webviewer.util.TempPages;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorLocation;
 import com.intellij.openapi.fileEditor.FileEditorState;
@@ -16,9 +18,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyEvent;
 import java.beans.PropertyChangeListener;
-import java.nio.file.Files;
 
 public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
 
@@ -33,43 +33,82 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
     private JButton refreshButton;
     private JButton bookmarkButton;
     private JButton themeButton;
-    private JButton brightnessButton;
+    private JSlider brightnessSlider;
     private JButton colorButton;
     private JButton convertButton;
     private JButton historyButton;
     private JButton readerModeButton;
-    private int brightnessLevel = 0;
-    private String customTextColor = "#c0c0c0";
+    private String customBgColor = "#1e1e1e";
+    private String customTextColor = "#d4d4d4";
     private String currentTitle = "";
     private boolean isHistoryNavigation = false;
 
     public WebViewerEditor(VirtualFile file, Project project) {
         this.file = file;
         this.project = project;
-        this.isDarkTheme = false;
+        this.isDarkTheme = ToggleThemeAction.isDarkTheme(file);
         init();
     }
+
+    private JPanel toolbar;
+    private JPanel addressPanel;
+    private JPanel buttonPanel;
 
     private JButton createToolButton(String text, String tooltip) {
         JButton btn = new JButton(text);
         btn.setToolTipText(tooltip);
         btn.setFocusPainted(false);
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
+        btn.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(160, 160, 160), 1, true),
+            BorderFactory.createEmptyBorder(5, 12, 5, 12)
+        ));
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        btn.setPreferredSize(new Dimension(28, 28));
-        btn.setMaximumSize(new Dimension(28, 28));
-        btn.setMinimumSize(new Dimension(28, 28));
+        btn.setFont(new Font("Microsoft YaHei", Font.PLAIN, 12));
+        btn.setForeground(new Color(60, 60, 60));
+        btn.setBackground(new Color(240, 240, 240));
+        btn.setOpaque(true);
+        btn.setContentAreaFilled(true);
+        btn.setPreferredSize(new Dimension(56, 30));
         btn.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseEntered(java.awt.event.MouseEvent e) {
-                btn.setContentAreaFilled(true);
-                btn.setBackground(new Color(230, 230, 230));
+                btn.setBackground(isDarkTheme ? new Color(70, 70, 70) : new Color(210, 210, 210));
             }
             @Override
             public void mouseExited(java.awt.event.MouseEvent e) {
-                btn.setContentAreaFilled(false);
+                btn.setBackground(isDarkTheme ? new Color(55, 55, 55) : new Color(240, 240, 240));
+            }
+        });
+        return btn;
+    }
+
+    private JButton createNavButton(String text, String tooltip) {
+        JButton btn = createToolButton(text, tooltip);
+        btn.setBackground(new Color(220, 230, 245));
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                btn.setBackground(isDarkTheme ? new Color(50, 60, 80) : new Color(190, 205, 230));
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                btn.setBackground(isDarkTheme ? new Color(40, 45, 60) : new Color(220, 230, 245));
+            }
+        });
+        return btn;
+    }
+
+    private JButton createActionButton(String text, String tooltip) {
+        JButton btn = createToolButton(text, tooltip);
+        btn.setBackground(new Color(230, 245, 230));
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                btn.setBackground(isDarkTheme ? new Color(45, 65, 45) : new Color(200, 230, 200));
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                btn.setBackground(isDarkTheme ? new Color(40, 50, 40) : new Color(230, 245, 230));
             }
         });
         return btn;
@@ -77,162 +116,196 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
 
     private void init() {
         panel = new JPanel(new BorderLayout());
-        
-        JPanel toolbar = new JPanel(new BorderLayout(8, 0));
-        toolbar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-        toolbar.setBackground(new Color(245, 245, 245));
-        
-        JPanel navigationPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-        navigationPanel.setOpaque(false);
-        
-        backButton = createToolButton("\u2190", "后退");
-        backButton.addActionListener(e -> {
-            isHistoryNavigation = true;
-            browserWrapper.goBack();
-        });
-        backButton.setEnabled(false);
-        navigationPanel.add(backButton);
 
-        forwardButton = createToolButton("\u2192", "前进");
-        forwardButton.addActionListener(e -> {
-            isHistoryNavigation = true;
-            browserWrapper.goForward();
-        });
-        forwardButton.setEnabled(false);
-        navigationPanel.add(forwardButton);
-        
-        refreshButton = createToolButton("\u27F3", "刷新");
-        refreshButton.addActionListener(e -> browserWrapper.refresh());
-        navigationPanel.add(refreshButton);
+        toolbar = new JPanel(new BorderLayout(0, 4));
+        toolbar.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        toolbar.setBackground(new Color(250, 250, 250));
 
-        historyButton = createToolButton("\u25BC", "历史记录");
-        historyButton.addActionListener(e -> {
-            HistoryDialog dialog = new HistoryDialog(
-                (Frame) SwingUtilities.getWindowAncestor(panel),
-                url -> browserWrapper.loadUrl(url)
-            );
-            dialog.setVisible(true);
-        });
-        navigationPanel.add(historyButton);
-        
-        toolbar.add(navigationPanel, BorderLayout.WEST);
-        
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
-        rightPanel.setOpaque(false);
-        
-        readerModeButton = createToolButton("\u2637", "阅读模式");
-        readerModeButton.addActionListener(e -> {
-            browserWrapper.toggleReaderMode();
-            boolean isReader = browserWrapper.isReaderMode();
-            readerModeButton.setText(isReader ? "\u2636" : "\u2637");
-            readerModeButton.setToolTipText(isReader ? "退出阅读模式" : "阅读模式");
-            readerModeButton.setBackground(isReader ? new Color(200, 220, 255) : null);
-        });
-        rightPanel.add(readerModeButton);
-        
-        convertButton = createToolButton("简", "繁体转简体");
-        convertButton.setFont(new Font("Microsoft YaHei", Font.PLAIN, 11));
-        convertButton.addActionListener(e -> browserWrapper.convertToSimplifiedChinese());
-        rightPanel.add(convertButton);
-        
-        bookmarkButton = createToolButton("\u2B50", "书签管理");
-        bookmarkButton.addActionListener(e -> {
-            String currentUrl = addressBar.getText().trim();
-            String title = currentTitle != null && !currentTitle.isEmpty() ? currentTitle : currentUrl;
-            BookmarkDialog dialog = new BookmarkDialog(
-                (Frame) SwingUtilities.getWindowAncestor(panel),
-                currentUrl,
-                title,
-                url -> browserWrapper.loadUrl(url)
-            );
-            dialog.setVisible(true);
-        });
-        rightPanel.add(bookmarkButton);
-        
-        themeButton = createToolButton("\u2600", "切换亮色/暗色主题");
-        themeButton.addActionListener(e -> {
-            isDarkTheme = !isDarkTheme;
-            applyTheme();
-            themeButton.setText(isDarkTheme ? "\u263D" : "\u2600");
-        });
-        rightPanel.add(themeButton);
-        
-        brightnessButton = createToolButton("\u263C", "调节亮度");
-        brightnessButton.addActionListener(e -> {
-            brightnessLevel = (brightnessLevel + 1) % 6;
-            browserWrapper.setBrightnessLevel(brightnessLevel - 2);
-            String[] icons = {"\u263C", "\u263D", "\u263E", "\u2600", "\u2601", "\u2602"};
-            brightnessButton.setText(icons[brightnessLevel]);
-            String[] labels = {"较暗", "微暗", "默认", "微亮", "较亮", "最亮"};
-            brightnessButton.setToolTipText("亮度: " + labels[brightnessLevel]);
-        });
-        rightPanel.add(brightnessButton);
-        
-        colorButton = createToolButton("\u25A0", "自定义文字颜色");
-        colorButton.addActionListener(e -> {
-            Color initialColor = Color.decode(customTextColor);
-            JColorChooser colorChooser = new JColorChooser(initialColor);
-            colorChooser.getSelectionModel().addChangeListener(ev -> {
-                Color c = colorChooser.getColor();
-                if (c != null) {
-                    String hex = String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
-                    browserWrapper.setCustomTextColor(hex);
-                }
-            });
-            JDialog dialog = JColorChooser.createDialog(panel, "选择文字颜色", true, colorChooser,
-                ev -> {
-                    Color c = colorChooser.getColor();
-                    if (c != null) {
-                        customTextColor = String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
-                        colorButton.setToolTipText("文字颜色: " + customTextColor);
-                    }
-                },
-                ev -> {
-                    customTextColor = "#c0c0c0";
-                    browserWrapper.setCustomTextColor(customTextColor);
-                    colorChooser.setColor(Color.decode(customTextColor));
-                    colorButton.setToolTipText("文字颜色: " + customTextColor);
-                });
-            dialog.setVisible(true);
-        });
-        rightPanel.add(colorButton);
-        
-        toolbar.add(rightPanel, BorderLayout.EAST);
-        
+        addressPanel = new JPanel(new BorderLayout(8, 0));
+        addressPanel.setOpaque(false);
+
         addressBar = new JTextField();
         addressBar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1, true),
-            BorderFactory.createEmptyBorder(4, 10, 4, 10)
+            BorderFactory.createLineBorder(new Color(180, 180, 180), 1, true),
+            BorderFactory.createEmptyBorder(3, 10, 3, 10)
         ));
-        addressBar.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        addressBar.setBackground(Color.WHITE);
+        addressBar.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        // JTextField 的 ActionListener 本身就在回车时触发，不要再加 KeyListener，否则会导航两次
         addressBar.addActionListener(e -> {
             String url = addressBar.getText().trim();
             if (!url.isEmpty()) {
                 browserWrapper.loadUrl(url);
             }
         });
-        addressBar.addKeyListener(new java.awt.event.KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    String url = addressBar.getText().trim();
-                    if (!url.isEmpty()) {
-                        browserWrapper.loadUrl(url);
-                    }
-                }
-            }
+        addressPanel.add(addressBar, BorderLayout.CENTER);
+
+        toolbar.add(addressPanel, BorderLayout.NORTH);
+
+        buttonPanel = new JPanel(new BorderLayout(8, 0));
+        buttonPanel.setOpaque(false);
+
+        JPanel leftButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        leftButtons.setOpaque(false);
+
+        backButton = createNavButton("后退", "后退");
+        backButton.addActionListener(e -> {
+            isHistoryNavigation = true;
+            browserWrapper.goBack();
         });
-        toolbar.add(addressBar, BorderLayout.CENTER);
-        
+        backButton.setEnabled(false);
+        leftButtons.add(backButton);
+
+        forwardButton = createNavButton("前进", "前进");
+        forwardButton.addActionListener(e -> {
+            isHistoryNavigation = true;
+            browserWrapper.goForward();
+        });
+        forwardButton.setEnabled(false);
+        leftButtons.add(forwardButton);
+
+        refreshButton = createNavButton("刷新", "刷新");
+        refreshButton.addActionListener(e -> browserWrapper.refresh());
+        leftButtons.add(refreshButton);
+
+        historyButton = createNavButton("历史", "历史记录");
+        historyButton.addActionListener(e -> {
+            HistoryDialog dialog = new HistoryDialog(
+                ownerFrame(),
+                url -> browserWrapper.loadUrl(url)
+            );
+            dialog.setVisible(true);
+        });
+        leftButtons.add(historyButton);
+
+        buttonPanel.add(leftButtons, BorderLayout.WEST);
+
+        JPanel rightButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        rightButtons.setOpaque(false);
+
+        readerModeButton = createActionButton("阅读", "阅读模式");
+        readerModeButton.addActionListener(e -> {
+            browserWrapper.toggleReaderMode();
+            boolean isReader = browserWrapper.isReaderMode();
+            readerModeButton.setText(isReader ? "退出" : "阅读");
+            readerModeButton.setToolTipText(isReader ? "退出阅读模式" : "阅读模式");
+            readerModeButton.setBackground(isReader ? (isDarkTheme ? new Color(35, 55, 35) : new Color(160, 210, 160)) : (isDarkTheme ? new Color(40, 50, 40) : new Color(230, 245, 230)));
+        });
+        rightButtons.add(readerModeButton);
+
+        convertButton = createActionButton("简转", "繁体转简体");
+        convertButton.addActionListener(e -> browserWrapper.convertToSimplifiedChinese());
+        rightButtons.add(convertButton);
+
+        bookmarkButton = createActionButton("收藏", "书签管理");
+        bookmarkButton.addActionListener(e -> {
+            String currentUrl = addressBar.getText().trim();
+            String title = currentTitle != null && !currentTitle.isEmpty() ? currentTitle : currentUrl;
+            BookmarkDialog dialog = new BookmarkDialog(
+                ownerFrame(),
+                currentUrl,
+                title,
+                url -> browserWrapper.loadUrl(url)
+            );
+            dialog.setVisible(true);
+        });
+        rightButtons.add(bookmarkButton);
+
+        themeButton = createActionButton("暗色", "切换亮色/暗色主题");
+        themeButton.addActionListener(e -> {
+            isDarkTheme = !isDarkTheme;
+            ToggleThemeAction.setDarkTheme(file, isDarkTheme);
+            applyTheme();
+            themeButton.setText(isDarkTheme ? "暗色" : "亮色");
+        });
+        rightButtons.add(themeButton);
+
+        brightnessSlider = new JSlider(JSlider.HORIZONTAL, 0, 10, 5);
+        brightnessSlider.setPreferredSize(new Dimension(150, 25));
+        brightnessSlider.setToolTipText("调节亮度（左暗右亮）");
+        brightnessSlider.addChangeListener(e -> {
+            // 拖动过程中不实时应用，松手后一次性生效，避免高频注入造成卡顿
+            if (brightnessSlider.getValueIsAdjusting() || browserWrapper == null) return;
+            // 左端最暗、右端最亮
+            browserWrapper.setBrightnessLevel(5 - brightnessSlider.getValue());
+        });
+        rightButtons.add(brightnessSlider);
+
+        colorButton = createActionButton("配色", "设置背景和文字颜色");
+        colorButton.addActionListener(e -> {
+            JDialog dialog = new JDialog(ownerFrame(), "配色设置", true);
+            dialog.setLayout(new BorderLayout(10, 10));
+            dialog.setSize(450, 300);
+            dialog.setLocationRelativeTo(panel);
+
+            JPanel content = new JPanel(new GridLayout(2, 2, 15, 15));
+            content.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+            JLabel bgLabel = new JLabel("背景颜色:");
+            JButton bgButton = new JButton("  ");
+            bgButton.setBackground(Color.decode(customBgColor));
+            bgButton.setOpaque(true);
+            bgButton.setBorderPainted(true);
+            bgButton.setPreferredSize(new Dimension(80, 30));
+            bgButton.addActionListener(ev -> {
+                Color c = JColorChooser.showDialog(dialog, "选择背景颜色", Color.decode(customBgColor));
+                if (c != null) {
+                    customBgColor = String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+                    bgButton.setBackground(c);
+                }
+            });
+            content.add(bgLabel);
+            content.add(bgButton);
+
+            JLabel fgLabel = new JLabel("文字颜色:");
+            JButton fgButton = new JButton("  ");
+            fgButton.setBackground(Color.decode(customTextColor));
+            fgButton.setOpaque(true);
+            fgButton.setBorderPainted(true);
+            fgButton.setPreferredSize(new Dimension(80, 30));
+            fgButton.addActionListener(ev -> {
+                Color c = JColorChooser.showDialog(dialog, "选择文字颜色", Color.decode(customTextColor));
+                if (c != null) {
+                    customTextColor = String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+                    fgButton.setBackground(c);
+                }
+            });
+            content.add(fgLabel);
+            content.add(fgButton);
+
+            JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+            JButton applyBtn = new JButton("应用");
+            applyBtn.addActionListener(ev -> {
+                browserWrapper.setCustomColors(customBgColor, customTextColor);
+                dialog.dispose();
+            });
+            JButton resetBtn = new JButton("重置");
+            resetBtn.addActionListener(ev -> {
+                customBgColor = "#1e1e1e";
+                customTextColor = "#d4d4d4";
+                bgButton.setBackground(Color.decode(customBgColor));
+                fgButton.setBackground(Color.decode(customTextColor));
+                browserWrapper.resetCustomColors();
+            });
+            btnPanel.add(applyBtn);
+            btnPanel.add(resetBtn);
+
+            dialog.add(content, BorderLayout.CENTER);
+            dialog.add(btnPanel, BorderLayout.SOUTH);
+            dialog.setVisible(true);
+        });
+        rightButtons.add(colorButton);
+
+        buttonPanel.add(rightButtons, BorderLayout.EAST);
+
+        toolbar.add(buttonPanel, BorderLayout.SOUTH);
+
         panel.add(toolbar, BorderLayout.NORTH);
         
         browserWrapper = new JBCefBrowserWrapper();
         browserWrapper.setUrlChangeListener(url -> {
             SwingUtilities.invokeLater(() -> {
                 addressBar.setText(url);
-                if (!isHistoryNavigation) {
-                    HistoryManager.addHistory(currentTitle, url);
-                }
                 isHistoryNavigation = false;
                 backButton.setEnabled(browserWrapper.canGoBack());
                 forwardButton.setEnabled(browserWrapper.canGoForward());
@@ -241,8 +314,14 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
         browserWrapper.setTitleChangeListener(title -> {
             SwingUtilities.invokeLater(() -> {
                 currentTitle = title;
+                if (!isHistoryNavigation) {
+                    String currentUrl = addressBar.getText().trim();
+                    HistoryManager.addHistory(title, currentUrl);
+                }
             });
         });
+        browserWrapper.setOpenNewTabListener(url ->
+            SwingUtilities.invokeLater(() -> TempPages.openInEditor(project, url)));
         JPanel browserPanel = new JPanel(new BorderLayout());
         browserPanel.setBorder(BorderFactory.createEmptyBorder(4, 6, 6, 6));
         browserPanel.add(browserWrapper.getComponent(), BorderLayout.CENTER);
@@ -253,12 +332,17 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
     }
 
     private void loadUrl() {
-        try {
-            String url = Files.readString(file.toNioPath());
+        String url = TempPages.readUrl(file);
+        if (url != null && !url.isEmpty()) {
             browserWrapper.loadUrl(url);
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+    }
+
+    /** 安全地取对话框 owner：取不到（或不是 Frame）时返回 null，交给 Swing 选择共享 owner。 */
+    @Nullable
+    private Frame ownerFrame() {
+        Window window = SwingUtilities.getWindowAncestor(panel);
+        return window instanceof Frame ? (Frame) window : null;
     }
 
     public void toggleTheme(boolean dark) {
@@ -268,6 +352,46 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
 
     private void applyTheme() {
         browserWrapper.setDarkTheme(isDarkTheme);
+        
+        Color toolbarBg = isDarkTheme ? new Color(30, 30, 30) : new Color(250, 250, 250);
+        Color navButtonBg = isDarkTheme ? new Color(40, 45, 60) : new Color(220, 230, 245);
+        Color actionButtonBg = isDarkTheme ? new Color(40, 50, 40) : new Color(230, 245, 230);
+        Color buttonFg = isDarkTheme ? new Color(200, 200, 200) : new Color(60, 60, 60);
+        Color borderColor = isDarkTheme ? new Color(60, 60, 60) : new Color(160, 160, 160);
+        Color addressBg = isDarkTheme ? new Color(40, 40, 40) : Color.WHITE;
+        Color addressFg = isDarkTheme ? new Color(200, 200, 200) : new Color(30, 30, 30);
+        
+        toolbar.setBackground(toolbarBg);
+        
+        addressBar.setBackground(addressBg);
+        addressBar.setForeground(addressFg);
+        addressBar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(borderColor, 1, true),
+            BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        
+        updateButtonColor(backButton, navButtonBg, buttonFg);
+        updateButtonColor(forwardButton, navButtonBg, buttonFg);
+        updateButtonColor(refreshButton, navButtonBg, buttonFg);
+        updateButtonColor(historyButton, navButtonBg, buttonFg);
+        updateButtonColor(convertButton, actionButtonBg, buttonFg);
+        updateButtonColor(bookmarkButton, actionButtonBg, buttonFg);
+        updateButtonColor(colorButton, actionButtonBg, buttonFg);
+        
+        boolean isReader = browserWrapper.isReaderMode();
+        Color readerBg = isReader ? (isDarkTheme ? new Color(35, 55, 35) : new Color(160, 210, 160)) : actionButtonBg;
+        updateButtonColor(readerModeButton, readerBg, buttonFg);
+        readerModeButton.setText(isReader ? "退出" : "阅读");
+        
+        themeButton.setText(isDarkTheme ? "暗色" : "亮色");
+        updateButtonColor(themeButton, actionButtonBg, buttonFg);
+    }
+
+    private void updateButtonColor(JButton btn, Color bg, Color fg) {
+        if (btn != null) {
+            btn.setBackground(bg);
+            btn.setForeground(fg);
+        }
     }
 
     @NotNull
@@ -324,7 +448,10 @@ public class WebViewerEditor extends UserDataHolderBase implements FileEditor {
 
     @Override
     public void dispose() {
-        Disposer.dispose(browserWrapper);
+        ToggleThemeAction.forget(file);
+        if (browserWrapper != null) {
+            Disposer.dispose(browserWrapper);
+        }
     }
 
     @Nullable

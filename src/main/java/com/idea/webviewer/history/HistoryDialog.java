@@ -39,8 +39,9 @@ public class HistoryDialog extends JDialog {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (index >= 0 && index < records.size()) {
-                    setToolTipText(records.get(index).url);
+                int realIndex = toRecordIndex(index);
+                if (realIndex >= 0) {
+                    setToolTipText(records.get(realIndex).url);
                 }
                 return this;
             }
@@ -64,9 +65,10 @@ public class HistoryDialog extends JDialog {
 
         JButton deleteButton = new JButton("删除");
         deleteButton.addActionListener(e -> {
-            int index = historyList.getSelectedIndex();
-            if (index >= 0) {
-                HistoryManager.removeHistory(index);
+            // 列表是倒序展示的，必须换算回存储下标，否则会删掉另一条记录
+            int realIndex = toRecordIndex(historyList.getSelectedIndex());
+            if (realIndex >= 0) {
+                HistoryManager.removeHistory(realIndex);
                 records = HistoryManager.loadHistory();
                 refreshList();
             }
@@ -106,17 +108,22 @@ public class HistoryDialog extends JDialog {
     }
 
     private void openSelected() {
-        int viewIndex = historyList.getSelectedIndex();
-        if (viewIndex >= 0) {
-            // 列表是倒序的，需要转换回原始索引
-            int realIndex = records.size() - 1 - viewIndex;
-            if (realIndex >= 0 && realIndex < records.size()) {
-                String url = records.get(realIndex).url;
-                if (onOpenUrl != null) {
-                    onOpenUrl.accept(url);
-                }
-                dispose();
+        int realIndex = toRecordIndex(historyList.getSelectedIndex());
+        if (realIndex >= 0) {
+            String url = records.get(realIndex).url;
+            if (onOpenUrl != null) {
+                onOpenUrl.accept(url);
             }
+            dispose();
         }
+    }
+
+    /** 视图下标（倒序）转存储下标，越界返回 -1。 */
+    private int toRecordIndex(int viewIndex) {
+        if (viewIndex < 0) {
+            return -1;
+        }
+        int realIndex = records.size() - 1 - viewIndex;
+        return realIndex >= 0 && realIndex < records.size() ? realIndex : -1;
     }
 }
