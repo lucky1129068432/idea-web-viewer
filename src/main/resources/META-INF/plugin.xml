@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.idea.webviewer</id>
     <name>Web Viewer</name>
-    <version>1.0.7</version>
+    <version>1.0.8</version>
     <vendor email="1129068432@qq.com" url="https://gitee.com/huiyif/idea-web-viewer">WebViewer</vendor>
 
     <description><![CDATA[
@@ -28,6 +28,9 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        1.0.8 - 修复暗色主题应用过慢/偶尔不生效：不再只在 onLoadEnd 注入，
+                改为页面加载开始后按 30/120/300/700/1500/3000ms 多次重试，
+                并在地址变化（单页应用路由）与加载出错时补注入
         1.0.7 - 打开网页默认使用深色主题、亮度最暗（滑块默认在最左端）；
                 Toggle Web Viewer Theme 不再占用菜单/工具栏，改由网页工具栏的「暗色/亮色」按钮切换
         1.0.6 - Open URL 默认出现在主工具栏（并配上图标），不再需要手动拖到工具栏

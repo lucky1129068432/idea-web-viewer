@@ -19,6 +19,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
@@ -36,7 +40,9 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
         "  var style = document.createElement('style');" +
         "  style.id = id;" +
         "  style.textContent = 'html { padding: 0 10px !important; box-sizing: border-box !important; } body { margin-left: auto !important; margin-right: auto !important; max-width: 100% !important; }';" +
-        "  document.head.appendChild(style);" +
+        "  var parent = document.head || document.documentElement;" +
+        "  if (!parent) return;" +
+        "  parent.appendChild(style);" +
         "})();";
 
     public JBCefBrowserWrapper() {
@@ -125,7 +131,12 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             }
 
             @Override
-            public void onAddressChange(CefBrowser browser, CefFrame frame, String url) {}
+            public void onAddressChange(CefBrowser browser, CefFrame frame, String url) {
+                // 单页应用（pushState / 前端路由）只换 URL 不重建文档，这里补一次重试窗口
+                if (frame != null && frame.isMain()) {
+                    scheduleThemeApplication();
+                }
+            }
 
             @Override
             public boolean onConsoleMessage(CefBrowser browser, CefSettings.LogSeverity level, String message, String source, int line) {
@@ -268,9 +279,11 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
         browser.getJBCefClient().addLoadHandler(new CefLoadHandler() {
             @Override
             public void onLoadEnd(CefBrowser browser, CefFrame frame, int httpStatusCode) {
+                // 加载结束后重试任务已无意义，先作废再补一次强制注入
+                themeGeneration.incrementAndGet();
                 injectPagePadding();
                 injectPopupInterceptor();
-                applyDarkMode();
+                applyThemeNow();
                 notifyUrlChanged();
                 if (isReaderMode) {
                     injectReaderMode();
@@ -279,6 +292,8 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
 
             @Override
             public void onLoadError(CefBrowser browser, CefFrame frame, ErrorCode errorCode, String errorText, String failedUrl) {
+                // 出错页面也是白底，同样要上色
+                applyThemeNow();
             }
 
             @Override
@@ -292,6 +307,8 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
                 if (frame != null && frame.isMain()) {
                     lastAppliedFilter = null;
                     colorsInjected = false;
+                    // 此时新文档还没建好，只能靠随后的多次重试铺上底色，避免长时间白屏
+                    scheduleThemeApplication();
                 }
                 notifyUrlChanged();
             }
@@ -348,6 +365,16 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     private String lastAppliedFilter = null;
     private boolean colorsInjected = false;
 
+    /** 页面加载期间的重试时间点：新文档通常在 onLoadStart 之后才建立，单次注入容易落空。 */
+    private static final long[] THEME_RETRY_DELAYS_MS = {30, 120, 300, 700, 1500, 3000};
+
+    private final ScheduledExecutorService themeScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "webviewer-theme-inject");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final AtomicInteger themeGeneration = new AtomicInteger();
+
     public void setBrightnessLevel(int level) {
         this.brightnessLevel = level;
         applyBrightness();
@@ -373,6 +400,38 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     }
 
     private void applyDarkMode() {
+        applyBrightness();
+    }
+
+    /**
+     * 在页面加载期间安排若干次主题注入重试。
+     *
+     * <p>只在 {@code onLoadEnd} 注入有两个问题：慢页面要等全部子资源加载完才变暗，期间一直是白底；
+     * 而部分页面在 onLoadEnd 之后才替换 DOM，注入会落在被丢弃的旧文档上，
+     * 表现为「一直是白的，手动点一下主题按钮才变暗」。多次重试可同时覆盖这两种情况。</p>
+     */
+    private void scheduleThemeApplication() {
+        if (disposed || !isBrowserAvailable()) {
+            return;
+        }
+        int generation = themeGeneration.incrementAndGet();
+        for (long delay : THEME_RETRY_DELAYS_MS) {
+            themeScheduler.schedule(() -> {
+                // 已经开始了新一代导航，旧任务直接丢弃
+                if (disposed || generation != themeGeneration.get()) {
+                    return;
+                }
+                applyThemeNow();
+            }, delay, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /** 强制重新注入（清掉去重标记），用于加载过程中的重试。 */
+    private void applyThemeNow() {
+        if (disposed || !isBrowserAvailable()) {
+            return;
+        }
+        lastAppliedFilter = null;
         applyBrightness();
     }
 
@@ -429,7 +488,9 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
             "  var style = document.createElement('style');" +
             "  style.id = id;" +
             "  style.textContent = css;" +
-            "  document.head.appendChild(style);" +
+            "  var parent = document.head || document.documentElement;" +
+            "  if (!parent) return;" +
+            "  parent.appendChild(style);" +
             "})();";
         executeJavaScript(script);
     }
@@ -571,6 +632,7 @@ public class JBCefBrowserWrapper extends JPanel implements Disposable {
     @Override
     public void dispose() {
         disposed = true;
+        themeScheduler.shutdownNow();
         if (browser != null) {
             Disposer.dispose(browser);
         }
