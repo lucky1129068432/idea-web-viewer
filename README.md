@@ -10,16 +10,20 @@
 
 ## 怎么打开
 
-装好后有 **三个入口**，都在主菜单 `Tools` 下：
+装好后从**主工具栏的 `Open URL` 按钮**打开，点一下就新开一个网页标签页。
 
 | 入口 | 位置 | 说明 |
 |---|---|---|
-| **Open URL** | `Tools → Open URL` | 主入口，新开一个网页标签页 |
-| 快捷键 | `Ctrl + Shift + U` | 同上，最快的方式 |
+| **Open URL** | 主工具栏按钮 | 主入口，点了就开新标签页 |
+| Open URL | `Tools → Open URL` | 工具栏上没有该按钮时用这个 |
+| 快捷键 | `Ctrl + Shift + U` | 最快的方式 |
 | **Toggle Web Viewer Theme** | `Tools → Toggle Web Viewer Theme` | 切换当前标签页的亮/暗主题 |
 
-> macOS 上快捷键若没生效，去 `Settings → Keymap` 搜 `Open URL` 自行绑定。
-> 快捷键被别的插件占用时也同样处理。
+> 工具栏上找不到 `Open URL` 按钮时：在工具栏空白处右键 → `Customize Toolbar…` →
+> 找到 `Open URL` 拖进工具栏即可。
+>
+> macOS 上快捷键若没生效，去 `Settings → Keymap` 搜 `Open URL` 自行绑定；
+> 被别的插件占用时也同样处理。
 
 打开后默认加载百度首页。**在顶部地址栏输入任意网址、回车即可跳转**，不写 `https://` 会自动补上。
 
