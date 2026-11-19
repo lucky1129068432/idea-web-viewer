@@ -1,5 +1,7 @@
 # Web Viewer
 
+**简体中文** | [English](README_EN.md)
+
 把 Chromium 浏览器嵌进 IntelliJ IDEA 的编辑器标签页：一个网址 = 一个标签页，查资料、看文档不用切出 IDE。
 
 ## 安装
